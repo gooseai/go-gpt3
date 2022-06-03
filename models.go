@@ -191,6 +191,7 @@ type LogprobResult struct {
 	Tokens        []string             `json:"tokens"`
 	TokenLogprobs []float32            `json:"token_logprobs"`
 	TopLogprobs   []map[string]float32 `json:"top_logprobs"`
+	AfterLogprobs []map[string]float32 `json:"after_logprobs"`
 	TextOffset    []int                `json:"text_offset"`
 }
 
