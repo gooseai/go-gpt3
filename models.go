@@ -63,11 +63,11 @@ type CompletionRequest struct {
 
 // LogprobResult represents logprob result of Choice
 type LogprobResult struct {
-	Tokens        []string             `json:"tokens"`
-	TokenLogprobs []float32            `json:"token_logprobs"`
-	TopLogprobs   []map[string]float32 `json:"top_logprobs"`
-	AfterLogprobs []map[string]float32 `json:"after_logprobs"`
-	TextOffset    []int                `json:"text_offset"`
+	Tokens          []string             `json:"tokens"`
+	TokenLogprobs   []float32            `json:"token_logprobs"`
+	TopLogprobs     []map[string]float32 `json:"top_logprobs"`
+	SampledLogprobs []map[string]float32 `json:"sampled_logprobs"`
+	TextOffset      []int                `json:"text_offset"`
 }
 
 // CompletionResponseChoice is one of the choices returned in the response to the Completions API
