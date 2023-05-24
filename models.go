@@ -59,6 +59,10 @@ type CompletionRequest struct {
 	// Whether to stream back results or not. Don't set this value in the request yourself
 	// as it will be overriden depending on if you use CompletionStream or Completion methods.
 	Stream bool `json:"stream,omitempty"`
+
+	// OAI - Modify the likelihood of specified tokens appearing in the
+	//       completion.
+	LogitBias *map[string]float64 `json:"logit_bias" binding:"omitempty"`
 }
 
 // LogprobResult represents logprob result of Choice
