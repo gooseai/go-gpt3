@@ -11,6 +11,7 @@ import (
 
 	"github.com/PullRequestInc/go-gpt3"
 	fakes "github.com/PullRequestInc/go-gpt3/go-gpt3fakes"
+	gpt3test "github.com/gooseai/go-gpt3"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/net/context"
 )
@@ -328,3 +329,18 @@ func TestResponses(t *testing.T) {
 }
 
 // TODO: add streaming response tests
+
+func TestNewOAIRoutes(t *testing.T) {
+	ctx := context.Background()
+	engine := "EleutherAI/pythia-160m"
+	request := gpt3test.CompletionRequest{
+		Prompt: []string{"This is a test"},
+		N:      gpt3.IntPtr(1),
+		Model:  engine,
+	}
+
+	client := gpt3test.NewClient("", gpt3test.WithBaseURL("http://localhost:8000/v1"))
+	resp, err := client.CompletionWithEngine(ctx, engine, request)
+	assert.Nil(t, err)
+	assert.NotNil(t, resp)
+}
