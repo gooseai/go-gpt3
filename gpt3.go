@@ -151,7 +151,11 @@ func NewClient(apiKey string, options ...ClientOption) Client {
 }
 
 func (c *client) Engines(ctx context.Context) (*EnginesResponse, error) {
-	req, err := c.newRequest(ctx, "GET", "/engines", nil)
+	route := "/engines"
+	if !c.useGoose {
+		route = "/models"
+	}
+	req, err := c.newRequest(ctx, "GET", route, nil)
 	if err != nil {
 		return nil, err
 	}
