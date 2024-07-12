@@ -18,11 +18,43 @@ const (
 	TextBabbage001Engine = "text-babbage-001"
 	TextCurie001Engine   = "text-curie-001"
 	TextDavinci001Engine = "text-davinci-001"
+	TextDavinci002Engine = "text-davinci-002"
+	TextDavinci003Engine = "text-davinci-003"
 	AdaEngine            = "ada"
 	BabbageEngine        = "babbage"
 	CurieEngine          = "curie"
 	DavinciEngine        = "davinci"
 	DefaultEngine        = DavinciEngine
+)
+
+type EmbeddingEngine string
+
+const (
+	GPT3Dot5Turbo             = "gpt-3.5-turbo"
+	GPT3Dot5Turbo0301         = "gpt-3.5-turbo-0301"
+	GPT3Dot5Turbo0613         = "gpt-3.5-turbo-0613"
+	TextSimilarityAda001      = "text-similarity-ada-001"
+	TextSimilarityBabbage001  = "text-similarity-babbage-001"
+	TextSimilarityCurie001    = "text-similarity-curie-001"
+	TextSimilarityDavinci001  = "text-similarity-davinci-001"
+	TextSearchAdaDoc001       = "text-search-ada-doc-001"
+	TextSearchAdaQuery001     = "text-search-ada-query-001"
+	TextSearchBabbageDoc001   = "text-search-babbage-doc-001"
+	TextSearchBabbageQuery001 = "text-search-babbage-query-001"
+	TextSearchCurieDoc001     = "text-search-curie-doc-001"
+	TextSearchCurieQuery001   = "text-search-curie-query-001"
+	TextSearchDavinciDoc001   = "text-search-davinci-doc-001"
+	TextSearchDavinciQuery001 = "text-search-davinci-query-001"
+	CodeSearchAdaCode001      = "code-search-ada-code-001"
+	CodeSearchAdaText001      = "code-search-ada-text-001"
+	CodeSearchBabbageCode001  = "code-search-babbage-code-001"
+	CodeSearchBabbageText001  = "code-search-babbage-text-001"
+	TextEmbeddingAda002       = "text-embedding-ada-002"
+)
+
+const (
+	TextModerationLatest = "text-moderation-latest"
+	TextModerationStable = "text-moderation-stable"
 )
 
 const (
@@ -45,6 +77,14 @@ type Client interface {
 	// as the owner and availability.
 	Engine(ctx context.Context, engine string) (*EngineObject, error)
 
+	// ChatCompletion creates a completion with the Chat completion endpoint which
+	// is what powers the ChatGPT experience.
+	ChatCompletion(ctx context.Context, request ChatCompletionRequest) (*ChatCompletionResponse, error)
+
+	// ChatCompletion creates a completion with the Chat completion endpoint which
+	// is what powers the ChatGPT experience.
+	ChatCompletionStream(ctx context.Context, request ChatCompletionRequest, onData func(*ChatCompletionStreamResponse) error) error
+
 	// Completion creates a completion with the default engine. This is the main endpoint of the API
 	// which auto-completes based on the given prompt.
 	Completion(ctx context.Context, request CompletionRequest) (*CompletionResponse, error)
@@ -59,11 +99,21 @@ type Client interface {
 	// CompletionStreamWithEngine is the same as CompletionStream except allows overriding the default engine on the client
 	CompletionStreamWithEngine(ctx context.Context, engine string, request CompletionRequest, onData func(*CompletionResponse)) error
 
+	// Given a prompt and an instruction, the model will return an edited version of the prompt.
+	Edits(ctx context.Context, request EditsRequest) (*EditsResponse, error)
+
 	// Search performs a semantic search over a list of documents with the default engine.
 	Search(ctx context.Context, request SearchRequest) (*SearchResponse, error)
 
 	// SearchWithEngine performs a semantic search over a list of documents with the specified engine.
 	SearchWithEngine(ctx context.Context, engine string, request SearchRequest) (*SearchResponse, error)
+
+	// Returns an embedding using the provided request.
+	Embeddings(ctx context.Context, request EmbeddingsRequest) (*EmbeddingsResponse, error)
+
+	// Moderation performs a moderation check on the given text against an OpenAI classifier to determine whether the
+	// provided content complies with OpenAI's usage policies.
+	Moderation(ctx context.Context, request ModerationRequest) (*ModerationResponse, error)
 }
 
 type client struct {
@@ -129,6 +179,87 @@ func (c *client) Engine(ctx context.Context, engine string) (*EngineObject, erro
 	return output, nil
 }
 
+func (c *client) ChatCompletion(ctx context.Context, request ChatCompletionRequest) (*ChatCompletionResponse, error) {
+	if request.Model == "" {
+		if request.Functions == nil {
+			request.Model = GPT3Dot5Turbo
+		} else {
+			request.Model = GPT3Dot5Turbo0613
+		}
+	}
+
+	request.Stream = false
+
+	req, err := c.newRequest(ctx, "POST", "/chat/completions", request)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.performRequest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	output := new(ChatCompletionResponse)
+	if err := getResponseObject(resp, output); err != nil {
+		return nil, err
+	}
+	output.RateLimitHeaders = NewRateLimitHeadersFromResponse(resp)
+	return output, nil
+}
+
+func (c *client) ChatCompletionStream(
+	ctx context.Context,
+	request ChatCompletionRequest,
+	onData func(*ChatCompletionStreamResponse) error) error {
+	if request.Model == "" {
+		request.Model = GPT3Dot5Turbo
+	}
+	request.Stream = true
+
+	req, err := c.newRequest(ctx, "POST", "/chat/completions", request)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.performRequest(req)
+	if err != nil {
+		return err
+	}
+
+	reader := bufio.NewReader(resp.Body)
+	defer resp.Body.Close()
+
+	for {
+		line, err := reader.ReadBytes('\n')
+		if err != nil {
+			return err
+		}
+
+		// make sure there isn't any extra whitespace before or after
+		line = bytes.TrimSpace(line)
+		// the completion API only returns data events
+		if !bytes.HasPrefix(line, dataPrefix) {
+			continue
+		}
+		line = bytes.TrimPrefix(line, dataPrefix)
+
+		// the stream is completed when terminated by [DONE]
+		if bytes.HasPrefix(line, doneSequence) {
+			break
+		}
+		output := new(ChatCompletionStreamResponse)
+		if err := json.Unmarshal(line, output); err != nil {
+			return fmt.Errorf("invalid json stream data: %v", err)
+		}
+		if err := onData(output); err != nil {
+			return fmt.Errorf("callback returned an error: %v", err)
+		}
+	}
+
+	return nil
+}
+
 func (c *client) Completion(ctx context.Context, request CompletionRequest) (*CompletionResponse, error) {
 	return c.CompletionWithEngine(ctx, c.defaultEngine, request)
 }
@@ -148,6 +279,8 @@ func (c *client) CompletionWithEngine(ctx context.Context, engine string, reques
 	if err := getResponseObject(resp, output); err != nil {
 		return nil, err
 	}
+	output.RateLimitHeaders = NewRateLimitHeadersFromResponse(resp)
+
 	return output, nil
 }
 
@@ -155,8 +288,10 @@ func (c *client) CompletionStream(ctx context.Context, request CompletionRequest
 	return c.CompletionStreamWithEngine(ctx, c.defaultEngine, request, onData)
 }
 
-var dataPrefix = []byte("data: ")
-var doneSequence = []byte("[DONE]")
+var (
+	dataPrefix   = []byte("data: ")
+	doneSequence = []byte("[DONE]")
+)
 
 func (c *client) CompletionStreamWithEngine(
 	ctx context.Context,
@@ -204,6 +339,23 @@ func (c *client) CompletionStreamWithEngine(
 	return nil
 }
 
+func (c *client) Edits(ctx context.Context, request EditsRequest) (*EditsResponse, error) {
+	req, err := c.newRequest(ctx, "POST", "/edits", request)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.performRequest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	output := new(EditsResponse)
+	if err := getResponseObject(resp, output); err != nil {
+		return nil, err
+	}
+	return output, nil
+}
+
 func (c *client) Search(ctx context.Context, request SearchRequest) (*SearchResponse, error) {
 	return c.SearchWithEngine(ctx, c.defaultEngine, request)
 }
@@ -222,6 +374,46 @@ func (c *client) SearchWithEngine(ctx context.Context, engine string, request Se
 		return nil, err
 	}
 	return output, nil
+}
+
+// Embeddings creates text embeddings for a supplied slice of inputs with a provided model.
+//
+// See: https://beta.openai.com/docs/api-reference/embeddings
+func (c *client) Embeddings(ctx context.Context, request EmbeddingsRequest) (*EmbeddingsResponse, error) {
+	req, err := c.newRequest(ctx, "POST", "/embeddings", request)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.performRequest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	output := EmbeddingsResponse{}
+	if err := getResponseObject(resp, &output); err != nil {
+		return nil, err
+	}
+	return &output, nil
+}
+
+// Moderation performs a moderation check on the given text against an OpenAI classifier.
+//
+// See: https://platform.openai.com/docs/api-reference/moderations/create
+func (c *client) Moderation(ctx context.Context, request ModerationRequest) (*ModerationResponse, error) {
+	req, err := c.newRequest(ctx, "POST", "/moderations", request)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.performRequest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	output := ModerationResponse{}
+	if err := getResponseObject(resp, &output); err != nil {
+		return nil, err
+	}
+	return &output, nil
 }
 
 func (c *client) performRequest(req *http.Request) (*http.Response, error) {
@@ -253,9 +445,11 @@ func checkForSuccess(resp *http.Response) error {
 			Type:       "Unexpected",
 			Message:    string(data),
 		}
+		apiError.RateLimitHeaders = NewRateLimitHeadersFromResponse(resp)
 		return apiError
 	}
 	result.Error.StatusCode = resp.StatusCode
+	result.Error.RateLimitHeaders = NewRateLimitHeadersFromResponse(resp)
 	return result.Error
 }
 
@@ -288,7 +482,7 @@ func (c *client) newRequest(ctx context.Context, method, path string, payload in
 	if err != nil {
 		return nil, err
 	}
-	if (len(c.idOrg) > 0) {
+	if len(c.idOrg) > 0 {
 		req.Header.Set("OpenAI-Organization", c.idOrg)
 	}
 	req.Header.Set("Content-type", "application/json")
