@@ -123,6 +123,7 @@ type client struct {
 	httpClient    *http.Client
 	defaultEngine string
 	idOrg         string
+	useGoose      bool
 }
 
 // NewClient returns a new OpenAI GPT-3 API client. An apiKey is required to use the client
@@ -141,6 +142,10 @@ func NewClient(apiKey string, options ...ClientOption) Client {
 	}
 	for _, o := range options {
 		o(c)
+	}
+
+	if c.baseURL == defaultBaseURL {
+		c.useGoose = true
 	}
 	return c
 }
@@ -265,8 +270,15 @@ func (c *client) Completion(ctx context.Context, request CompletionRequest) (*Co
 }
 
 func (c *client) CompletionWithEngine(ctx context.Context, engine string, request CompletionRequest) (*CompletionResponse, error) {
+	route := fmt.Sprintf("/engines/%s/completions", engine)
+	if !c.useGoose {
+		route = "/completions"
+		if request.Model == "" {
+			panic("model is required for version 2.1.0 and later")
+		}
+	}
 	request.Stream = false
-	req, err := c.newRequest(ctx, "POST", fmt.Sprintf("/engines/%s/completions", engine), request)
+	req, err := c.newRequest(ctx, "POST", route, request)
 	if err != nil {
 		return nil, err
 	}
