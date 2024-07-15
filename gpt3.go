@@ -461,7 +461,7 @@ func checkForSuccess(resp *http.Response) error {
 		return fmt.Errorf("failed to read from body: %w", err)
 	}
 	var result APIErrorResponse
-	if err := json.Unmarshal(data, &result); err != nil {
+	if err := json.Unmarshal(data, &result.Error); err != nil {
 		// if we can't decode the json error then create an unexpected error
 		apiError := APIError{
 			StatusCode: resp.StatusCode,
