@@ -59,6 +59,7 @@ const (
 
 const (
 	defaultBaseURL        = "https://api.openai.com/v1"
+	defaultGooseURL       = "https://api.goose.ai/vi"
 	defaultUserAgent      = "go-gpt3"
 	defaultTimeoutSeconds = 30
 )
@@ -145,7 +146,7 @@ func NewClient(apiKey string, options ...ClientOption) Client {
 		o(c)
 	}
 
-	if c.baseURL == defaultBaseURL {
+	if c.baseURL == defaultGooseURL {
 		c.useGoose = true
 	}
 	return c

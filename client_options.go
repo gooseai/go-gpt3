@@ -58,3 +58,10 @@ func WithTimeout(timeout time.Duration) ClientOption {
 		return nil
 	}
 }
+
+func WithGooseAPI() ClientOption {
+	return func(c *client) error {
+		c.useGoose = true
+		return nil
+	}
+}
