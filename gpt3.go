@@ -139,6 +139,7 @@ func NewClient(apiKey string, options ...ClientOption) Client {
 		httpClient:    httpClient,
 		defaultEngine: DefaultEngine,
 		idOrg:         "",
+		useGoose:      false,
 	}
 	for _, o := range options {
 		o(c)
