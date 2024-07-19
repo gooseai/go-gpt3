@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"testing"
 	"time"
 
@@ -514,4 +515,25 @@ func TestNewOAIRoutes(t *testing.T) {
 	assert.Nil(t, engErr)
 	assert.NotNil(t, engResp)
 
+}
+
+func TestGetTokenizerFromEngine(t *testing.T) {
+	ctx := context.Background()
+	apiKey := os.Getenv("TEST_API_KEY")
+	client := gpt3.NewClient(apiKey, gpt3.WithBaseURL("https://api.goose.ai/v1"))
+	eng, err := client.Engine(ctx, "fairseq-2-7b")
+	assert.Nil(t, err)
+	assert.NotNil(t, eng)
+	assert.Equal(t, eng.Tokenizer, "gpt2")
+}
+
+// Assumes server is an OAI-compatible API server, has no authentication, is hosted locally at port 8000,
+// and has "gpt-j-6b" as an engine entry at its engines/ endpoint
+func TestGetTokenizerFromEngineWithNoTokenizerField(t *testing.T) {
+	ctx := context.Background()
+	client := gpt3.NewClient("", gpt3.WithBaseURL("http://localhost:8000/v1"))
+	eng, err := client.Engine(ctx, "gpt-j-6b")
+	assert.Nil(t, err)
+	assert.NotNil(t, eng)
+	assert.Equal(t, eng.Tokenizer, "")
 }

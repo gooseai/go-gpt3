@@ -27,10 +27,11 @@ type APIErrorResponse struct {
 
 // EngineObject contained in an engine reponse
 type EngineObject struct {
-	ID     string `json:"id"`
-	Object string `json:"object"`
-	Owner  string `json:"owner"`
-	Ready  bool   `json:"ready"`
+	ID        string `json:"id"`
+	Object    string `json:"object"`
+	Owner     string `json:"owner"`
+	Ready     bool   `json:"ready"`
+	Tokenizer string `json:"tokenizer"`
 }
 
 // EnginesResponse is returned from the Engines API
