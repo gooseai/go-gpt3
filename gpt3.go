@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"time"
 )
@@ -280,7 +281,9 @@ func (c *client) CompletionWithEngine(ctx context.Context, engine string, reques
 	if !c.useGoose {
 		route = "/completions"
 		if request.Model == "" {
-			panic("model is required for version 2.1.0 and later")
+			log.Println("model is required in the data payload for OpenAI endpoints past version 2.1.0 " +
+				"Will use the engine provided.")
+			request.Model = engine
 		}
 	}
 	request.Stream = false
