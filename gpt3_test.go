@@ -499,7 +499,7 @@ func TestRateLimitHeaders(t *testing.T) {
 
 func TestNewOAIRoutes(t *testing.T) {
 	ctx := context.Background()
-	engine := "EleutherAI/pythia-160m"
+	engine := "EleutherAI/gpt-j-6b"
 	request := gpt3.CompletionRequest{
 		Prompt: []string{"This is a test"},
 		N:      gpt3.IntPtr(1),
@@ -532,7 +532,7 @@ func TestGetTokenizerFromEngine(t *testing.T) {
 func TestGetTokenizerFromEngineWithNoTokenizerField(t *testing.T) {
 	ctx := context.Background()
 	client := gpt3.NewClient("", gpt3.WithBaseURL("http://localhost:8000/v1"))
-	eng, err := client.Engine(ctx, "gpt-j-6b")
+	eng, err := client.Engine(ctx, "EleutherAI/gpt-j-6b")
 	assert.Nil(t, err)
 	assert.NotNil(t, eng)
 	assert.Equal(t, eng.Tokenizer, "")

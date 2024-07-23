@@ -175,7 +175,11 @@ func (c *client) Engines(ctx context.Context) (*EnginesResponse, error) {
 }
 
 func (c *client) Engine(ctx context.Context, engine string) (*EngineObject, error) {
-	req, err := c.newRequest(ctx, "GET", fmt.Sprintf("/engines/%s", engine), nil)
+	route := fmt.Sprintf("/engines/%s", engine)
+	if !c.useGoose {
+		route = fmt.Sprintf("/models/%s", engine)
+	}
+	req, err := c.newRequest(ctx, "GET", route, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -325,7 +329,9 @@ func (c *client) CompletionStreamWithEngine(
 	if !c.useGoose {
 		route = "/completions"
 		if request.Model == "" {
-			panic("model is required for version 2.1.0 and later")
+			log.Println("model is required in the data payload for OpenAI endpoints past version 2.1.0 " +
+				"Will use the engine provided.")
+			request.Model = engine
 		}
 	}
 	req, err := c.newRequest(ctx, "POST", route, request)
