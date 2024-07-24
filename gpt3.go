@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"time"
 )
@@ -59,6 +60,7 @@ const (
 
 const (
 	defaultBaseURL        = "https://api.openai.com/v1"
+	defaultGooseURL       = "https://api.goose.ai/vi"
 	defaultUserAgent      = "go-gpt3"
 	defaultTimeoutSeconds = 30
 )
@@ -123,6 +125,7 @@ type client struct {
 	httpClient    *http.Client
 	defaultEngine string
 	idOrg         string
+	useGoose      bool
 }
 
 // NewClient returns a new OpenAI GPT-3 API client. An apiKey is required to use the client
@@ -138,15 +141,24 @@ func NewClient(apiKey string, options ...ClientOption) Client {
 		httpClient:    httpClient,
 		defaultEngine: DefaultEngine,
 		idOrg:         "",
+		useGoose:      false,
 	}
 	for _, o := range options {
 		o(c)
+	}
+
+	if c.baseURL == defaultGooseURL {
+		c.useGoose = true
 	}
 	return c
 }
 
 func (c *client) Engines(ctx context.Context) (*EnginesResponse, error) {
-	req, err := c.newRequest(ctx, "GET", "/engines", nil)
+	route := "/engines"
+	if !c.useGoose {
+		route = "/models"
+	}
+	req, err := c.newRequest(ctx, "GET", route, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +175,11 @@ func (c *client) Engines(ctx context.Context) (*EnginesResponse, error) {
 }
 
 func (c *client) Engine(ctx context.Context, engine string) (*EngineObject, error) {
-	req, err := c.newRequest(ctx, "GET", fmt.Sprintf("/engines/%s", engine), nil)
+	route := fmt.Sprintf("/engines/%s", engine)
+	if !c.useGoose {
+		route = fmt.Sprintf("/models/%s", engine)
+	}
+	req, err := c.newRequest(ctx, "GET", route, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -265,8 +281,17 @@ func (c *client) Completion(ctx context.Context, request CompletionRequest) (*Co
 }
 
 func (c *client) CompletionWithEngine(ctx context.Context, engine string, request CompletionRequest) (*CompletionResponse, error) {
+	route := fmt.Sprintf("/engines/%s/completions", engine)
+	if !c.useGoose {
+		route = "/completions"
+		if request.Model == "" {
+			log.Println("model is required in the data payload for OpenAI endpoints past version 2.1.0 " +
+				"Will use the engine provided.")
+			request.Model = engine
+		}
+	}
 	request.Stream = false
-	req, err := c.newRequest(ctx, "POST", fmt.Sprintf("/engines/%s/completions", engine), request)
+	req, err := c.newRequest(ctx, "POST", route, request)
 	if err != nil {
 		return nil, err
 	}
@@ -300,7 +325,16 @@ func (c *client) CompletionStreamWithEngine(
 	onData func(*CompletionResponse),
 ) error {
 	request.Stream = true
-	req, err := c.newRequest(ctx, "POST", fmt.Sprintf("/engines/%s/completions", engine), request)
+	route := fmt.Sprintf("/engines/%s/completions", engine)
+	if !c.useGoose {
+		route = "/completions"
+		if request.Model == "" {
+			log.Println("model is required in the data payload for OpenAI endpoints past version 2.1.0 " +
+				"Will use the engine provided.")
+			request.Model = engine
+		}
+	}
+	req, err := c.newRequest(ctx, "POST", route, request)
 	if err != nil {
 		return err
 	}
@@ -438,7 +472,7 @@ func checkForSuccess(resp *http.Response) error {
 		return fmt.Errorf("failed to read from body: %w", err)
 	}
 	var result APIErrorResponse
-	if err := json.Unmarshal(data, &result); err != nil {
+	if err := json.Unmarshal(data, &result.Error); err != nil {
 		// if we can't decode the json error then create an unexpected error
 		apiError := APIError{
 			StatusCode: resp.StatusCode,

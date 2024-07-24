@@ -7,11 +7,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"testing"
 	"time"
 
-	"github.com/PullRequestInc/go-gpt3"
 	fakes "github.com/PullRequestInc/go-gpt3/go-gpt3fakes"
+	gpt3 "github.com/gooseai/go-gpt3"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/net/context"
 )
@@ -495,3 +496,44 @@ func TestRateLimitHeaders(t *testing.T) {
 }
 
 // TODO: add streaming response tests
+
+func TestNewOAIRoutes(t *testing.T) {
+	ctx := context.Background()
+	engine := "EleutherAI/gpt-j-6b"
+	request := gpt3.CompletionRequest{
+		Prompt: []string{"This is a test"},
+		N:      gpt3.IntPtr(1),
+		Model:  engine,
+	}
+
+	client := gpt3.NewClient("", gpt3.WithBaseURL("http://localhost:8000/v1"))
+	resp, err := client.CompletionWithEngine(ctx, engine, request)
+	assert.Nil(t, err)
+	assert.NotNil(t, resp)
+
+	engResp, engErr := client.Engines(ctx)
+	assert.Nil(t, engErr)
+	assert.NotNil(t, engResp)
+
+}
+
+func TestGetTokenizerFromEngine(t *testing.T) {
+	ctx := context.Background()
+	apiKey := os.Getenv("TEST_API_KEY")
+	client := gpt3.NewClient(apiKey, gpt3.WithBaseURL("https://api.goose.ai/v1"))
+	eng, err := client.Engine(ctx, "fairseq-2-7b")
+	assert.Nil(t, err)
+	assert.NotNil(t, eng)
+	assert.Equal(t, eng.Tokenizer, "gpt2")
+}
+
+// Assumes server is an OAI-compatible API server, has no authentication, is hosted locally at port 8000,
+// and has "gpt-j-6b" as an engine entry at its engines/ endpoint
+func TestGetTokenizerFromEngineWithNoTokenizerField(t *testing.T) {
+	ctx := context.Background()
+	client := gpt3.NewClient("", gpt3.WithBaseURL("http://localhost:8000/v1"))
+	eng, err := client.Engine(ctx, "EleutherAI/gpt-j-6b")
+	assert.Nil(t, err)
+	assert.NotNil(t, eng)
+	assert.Equal(t, eng.Tokenizer, "")
+}

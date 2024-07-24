@@ -27,10 +27,11 @@ type APIErrorResponse struct {
 
 // EngineObject contained in an engine reponse
 type EngineObject struct {
-	ID     string `json:"id"`
-	Object string `json:"object"`
-	Owner  string `json:"owner"`
-	Ready  bool   `json:"ready"`
+	ID        string `json:"id"`
+	Object    string `json:"object"`
+	Owner     string `json:"owner"`
+	Ready     bool   `json:"ready"`
+	Tokenizer string `json:"tokenizer"`
 }
 
 // EnginesResponse is returned from the Engines API
@@ -155,6 +156,11 @@ type CompletionRequest struct {
 	// OAI - Modify the likelihood of specified tokens appearing in the
 	//       completion.
 	LogitBias *map[string]float64 `json:"logit_bias" binding:"omitempty"`
+
+	// Later versions of the OAI API expect a `model` parameter in the payload
+	// rather than putting `engine`
+	// as part of the route
+	Model string `json:"model"`
 }
 
 // EditsRequest is a request for the edits API
